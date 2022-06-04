@@ -379,7 +379,7 @@ def execute_command():
                     req = urllib.request.Request(url)
                     html = urllib.request.urlopen(req).read().decode('utf-8')
                     # if we have execute commands in URL
-                    if "EXECUTE COMMANDS" in html or "EXECUTE COMMAND":
+                    if "EXECUTE COMMANDS" in html or "EXECUTE COMMAND" in html:
                         # here we check first to see if we need to execute or we have already
                         commands = 0
                         if os.path.isfile("/tmp/tap.txt"):
@@ -387,11 +387,11 @@ def execute_command():
                             filewrite.write(html)
                             filewrite.close()
                             # here we do hash comparisons
-                            fileopen1 = open ("/tmp/tap.txt", "r")
+                            fileopen1 = open("/tmp/tap.txt", "r")
                             # our compare file
                             fileopen2 = open("/tmp/tap_comp.txt", "r")
-                            data1 = fileopen1.read()
-                            data2 = fileopen2.read()
+                            data1 = fileopen1.read().encode()
+                            data2 = fileopen2.read().encode()
                             hash = hashlib.sha512()
                             # create hash for first file
                             hash.update(data1)
