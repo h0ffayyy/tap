@@ -11,14 +11,19 @@ import subprocess
 import time
 import os
 import pexpect
+import distro
 try:
     from Crypto.Cipher import AES
 except ImportError:
-    subprocess.Popen("apt-get -y install python3-cryptography", shell=True).wait()
+    distro = distro.id()
+    if distro == 'kali':
+        subprocess.Popen("apt-get -y install python3-cryptography", shell=True).wait()
+    else:
+        subprocess.Popen("apt-get -y install python3-crypto", shell=True).wait()
     try:
         from Crypto.Cipher import AES
     except ImportError:
-        print("Install python3-cryptography first, then re-run setup.")
+        print("Install python3-crypto/python3-cryptography first, then re-run setup.")
         sys.exit(1)
 
 import base64
