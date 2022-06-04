@@ -155,7 +155,7 @@ if answer.lower() == "y" or answer.lower() == "yes":
         # install git and update everything
         print("[*] Updating everything beforehand...")
         subprocess.Popen("apt-get update && apt-get --force-yes -y upgrade && apt-get --force-yes -y dist-upgrade", shell=True).wait()
-        subprocess.Popen("apt-get --force-yes -y install git python3-crypto python3-pexpect openssh-server net-tools", shell=True).wait()
+        subprocess.Popen("apt-get --force-yes -y install git python3-cryptography python3-pexpect openssh-server net-tools", shell=True).wait()
         from Crypto.Cipher import AES
         choice = input("Do you want to keep TAP updated? (requires internet) [y/n]: ")
         if choice == "y" or choice == "yes":

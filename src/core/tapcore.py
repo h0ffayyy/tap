@@ -14,11 +14,11 @@ import pexpect
 try:
     from Crypto.Cipher import AES
 except ImportError:
-    subprocess.Popen("apt-get -y install python3-crypto", shell=True).wait()
+    subprocess.Popen("apt-get -y install python3-cryptography", shell=True).wait()
     try:
         from Crypto.Cipher import AES
     except ImportError:
-        print("Install python3-crypto first, then re-run setup.")
+        print("Install python3-cryptography first, then re-run setup.")
         sys.exit(1)
 
 import base64
