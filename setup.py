@@ -35,8 +35,8 @@ def kill_tap():
                 print("[*] Killing running version of TAP..")
                 line = line.split(" ")
                 pid = line[6]
-                subprocess.Popen("kill %s" % (pid), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()
-                print("[*] Killed the TAP process: " + pid)
+                subprocess.Popen(f"kill {pid}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()
+                print(f"[*] Killed the TAP process: {pid}")
 
         except: pass
 
@@ -47,8 +47,8 @@ def kill_tap():
                 print("[*] Killing running version of TAP HEARTBEAT..")
                 line = line.split(" ")
                 pid = line[6]
-                subprocess.Popen("kill %s" % (pid), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()
-                print("[*] Killed the Heartbeat TAP process: " + pid)
+                subprocess.Popen(f"kill {pid}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()
+                print(f"[*] Killed the Heartbeat TAP process: {pid}")
         except: pass
 
 # here we encrypt via aes, will return encrypted string based on secret key which is random
@@ -222,7 +222,7 @@ if answer.lower() == "y" or answer.lower() == "yes":
             if username == "": 
                 username = "root"
             else:                                    
-                password = getpass.getpass("Enter password for %s: " % (username))
+                password = getpass.getpass(f"Enter password for {username}: ")
     
         if password != "":
             print("[*] Encrypting the password now..")
@@ -266,7 +266,7 @@ if answer.lower() == "y" or answer.lower() == "yes":
                 if installed.lower() == 'y':
                     username = input("Enter the username for the REMOTE account to log into the EXTERNAL server: ")
                     if username == "": username = "root"
-                    child = pexpect.spawn("ssh %s@%s -p %s" % (username,host,port))
+                    child = pexpect.spawn(f"ssh {username}@{host} -p {port}")
                     i = child.expect(['The authenticity of host', 'password', 'Connection refused', 'Permission denied, please try again.', 'Last login:'])
                     if i < 4:
                         print("[*] Error: Could not connect to remote server. Either the SSH Key is incorrectly configured or no SSH Key has been configured")
@@ -289,7 +289,7 @@ if answer.lower() == "y" or answer.lower() == "yes":
                     print("[*] Below will ask for a username and password, this is for the REMOTE server exposed on the Internet. This is a one time thing where the TAP device will upload and add the SSH keys to the remote system in order to handle SSH authentication. This is the PW for your external server on the Internet.")
                     username = input("Enter the username for the REMOTE account to log into the EXTERNAL server: ")
                     if username == "": username = "root"
-                    child = pexpect.spawn("ssh %s@%s -p %s" % (username,host,port))
+                    child = pexpect.spawn(f"ssh {username}@{host} -p {port}")
                     password_onetime = getpass.getpass("Enter your password for the remote SSH server: ")
                     i = child.expect(['The authenticity of host', 'password', 'Connection refused'])
                     if i == 0:
@@ -330,10 +330,10 @@ if answer.lower() == "y" or answer.lower() == "yes":
                     # add a space
                     child.sendline("echo '' >> ~/.ssh/authorized_keys")
                     # comment code for authorized list
-                    child.sendline("echo '# TAP box for hostname: %s' >> ~/.ssh/authorized_keys" % (hostname))
+                    child.sendline(f"echo '# TAP box for hostname: {hostname}' >> ~/.ssh/authorized_keys")
                     # actual ssh key
-                    child.sendline("echo '%s' >> ~/.ssh/authorized_keys" % (pub))
-                    print("[*] Key for %s added to the external box: %s" % (hostname, host))
+                    child.sendline(f"echo '{pub}' >> ~/.ssh/authorized_keys")
+                    print(f"[*] Key for {hostname} added to the external box: {host}")
                    
             else:
                 ssh_keys ="OFF"
@@ -347,15 +347,15 @@ if answer.lower() == "y" or answer.lower() == "yes":
             # write out the config file
             filewrite = open("/usr/share/tap/config", "w")
             filewrite.write("# tap config options\n\n")
-            filewrite.write("# The username for the ssh connection\nUSERNAME=%s\n# The password for the reverse ssh connection\nPASSWORD=%s\n# The reverse ssh ipaddr or hostname\nIPADDR=%s\n# The port for the reverse connect\nPORT=%s\n" % (username, password,host,port))
+            filewrite.write(f"# The username for the ssh connection\nUSERNAME={username}\n# The password for the reverse ssh connection\nPASSWORD={password}\n# The reverse ssh ipaddr or hostname\nIPADDR={host}\n# The port for the reverse connect\nPORT={port}\n")
             filewrite.write("# SSH check is in seconds\nSSH_CHECK_INTERVAL=60\n")
-            filewrite.write("# The local SSH port on the reverse SSH host\nLOCAL_PORT=%s\n" % (localport))
-            filewrite.write("# Where to pull updates from\nUPDATE_SERVER=%s\n" % (updates))
-            filewrite.write("# URL for command updates - ENSURE THAT THE FIRST LINE OF TEXT FILE HAS: 'EXECUTE COMMANDS' or it will not execute anything!\nCOMMAND_UPDATES=%s\n" % (commands))
-            filewrite.write("# SPECIFY IF TAP WILL AUTOMATICALLY UPDATE OR NOT\nAUTO_UPDATE=%s\n" % (AUTO_UPDATE))
-            filewrite.write("# SPECIFY IF SSH KEYS ARE IN USE OR NOT\nSSH_KEYS=%s\n" % (ssh_keys))
-            filewrite.write("# LOG EVERY COMMAND VIA SSH? YES OR NO - ALL LOGS GO TO /var/log/messages\nLOG_EVERYTHING=%s\n" % (log_everything))
-            filewrite.write("# THIS IS USED TO TUNNEL SOCKS HTTP TRAFFIC FOR LINUX UPDATES\nSOCKS_PROXY_PORT=%s\n" % (socks))
+            filewrite.write(f"# The local SSH port on the reverse SSH host\nLOCAL_PORT={localport}\n")
+            filewrite.write(f"# Where to pull updates from\nUPDATE_SERVER={updates}\n")
+            filewrite.write(f"# URL for command updates - ENSURE THAT THE FIRST LINE OF TEXT FILE HAS: 'EXECUTE COMMANDS' or it will not execute anything!\nCOMMAND_UPDATES={commands}\n")
+            filewrite.write(f"# SPECIFY IF TAP WILL AUTOMATICALLY UPDATE OR NOT\nAUTO_UPDATE={AUTO_UPDATE}\n")
+            filewrite.write(f"# SPECIFY IF SSH KEYS ARE IN USE OR NOT\nSSH_KEYS={ssh_keys}\n")
+            filewrite.write(f"# LOG EVERY COMMAND VIA SSH? YES OR NO - ALL LOGS GO TO /var/log/messages\nLOG_EVERYTHING={log_everything}\n")
+            filewrite.write(f"# THIS IS USED TO TUNNEL SOCKS HTTP TRAFFIC FOR LINUX UPDATES\nSOCKS_PROXY_PORT={socks}\n")
             filewrite.close()
 
             # set the background
