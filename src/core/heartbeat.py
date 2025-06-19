@@ -18,10 +18,10 @@ while 1:
     if not "/usr/share/tap/tap.py" in stdout_value:
         # first trigger an update
         print("[*] TAP is not operational, attempting to kick it off..")
-        subprocess.Popen("cd /usr/share/tap;python3 update.py", shell=True).wait()
+        subprocess.Popen("cd /usr/share/tap;python3.12 update.py", shell=True).wait()
 
         # kick off tap
-        subprocess.Popen("python3 /usr/share/tap/tap.py &", shell=True).wait()
+        subprocess.Popen("python3.12 /usr/share/tap/tap.py &", shell=True).wait()
 
         print("[*] Checking to ensure it is operational...")
         proc = subprocess.Popen("ps -ax | grep tap", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
