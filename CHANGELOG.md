@@ -5,7 +5,7 @@ version 2.0
 ~~~~~~~~~~~~~~~
 
 * packaged as an installable Python project (pip/uv) exposing a single `tap` CLI
-  (install / uninstall / run / stop / update / passwd)
+  (install / uninstall / run / stop / update)
 * replaced the imperative setup.py and init.d + heartbeat supervision with a
   systemd service (Restart=always handles liveness)
 * key-only SSH authentication: removed password auth entirely, along with
@@ -20,7 +20,6 @@ version 2.0
 * default SSH root login to off; opt-in at install time
 * fixed the remote-command channel (was non-functional) and added optional
   HMAC-SHA256 authentication of command files
-* generate ed25519 keys instead of RSA
 * dropped deprecated apt --force-yes; use DEBIAN_FRONTEND=noninteractive
 * typed configuration loader, logging, targeted exceptions, unit tests,
   ruff + mypy, and GitHub Actions CI

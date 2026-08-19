@@ -66,7 +66,7 @@ Use a **non-root** account on the remote server for the tunnel.
 
 ## Authentication
 
-TAP is **key-only**. `tap install` generates an ed25519 key pair and uploads
+TAP is **key-only**. `tap install` generates a 4096-bit RSA key pair and uploads
 the public key to your remote server with `ssh-copy-id` (which prompts you for
 the remote password once — TAP never stores it). The tunnel then runs with
 `BatchMode=yes`, so ssh never prompts and no secret lives on the box. Resilience

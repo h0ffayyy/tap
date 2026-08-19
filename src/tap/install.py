@@ -141,9 +141,9 @@ def generate_ssh_key() -> None:
     PRIVATE_KEY.parent.mkdir(mode=0o700, exist_ok=True)
     for key in (PRIVATE_KEY, PRIVATE_KEY.with_suffix(".pub")):
         key.unlink(missing_ok=True)
-    log.info("Generating an ed25519 SSH key pair at %s.", PRIVATE_KEY)
+    log.info("Generating a 4096-bit RSA SSH key pair at %s.", PRIVATE_KEY)
     subprocess.run(
-        ["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(PRIVATE_KEY)],
+        ["ssh-keygen", "-t", "rsa", "-b", "4096", "-N", "", "-f", str(PRIVATE_KEY)],
         check=True,
     )
 

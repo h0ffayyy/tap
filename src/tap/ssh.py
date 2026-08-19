@@ -22,7 +22,7 @@ from tap.config import TapConfig
 
 log = logging.getLogger("tap.ssh")
 
-PRIVATE_KEY = Path("/root/.ssh/id_ed25519")
+PRIVATE_KEY = Path("/root/.ssh/id_rsa")
 _TERMINATE_GRACE_SECONDS = 5
 
 
