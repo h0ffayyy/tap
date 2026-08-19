@@ -1,0 +1,16 @@
+[Unit]
+Description=TrustedSec Attack Platform (TAP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=__TAP_BIN__ run
+ExecStop=__TAP_BIN__ stop
+Restart=always
+RestartSec=10
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
