@@ -4,7 +4,22 @@
 version 2.0
 ~~~~~~~~~~~~~~~
 
-* updated codebase to python3
+* packaged as an installable Python project (pip/uv) exposing a single `tap` CLI
+  (install / uninstall / run / stop / update / passwd)
+* replaced the imperative setup.py and init.d + heartbeat supervision with a
+  systemd service (Restart=always handles liveness)
+* fixed password encryption: real AES-256-GCM with a per-box key, replacing the
+  previously broken/unauthenticated ECB scheme
+* verify SSH host keys (StrictHostKeyChecking=accept-new) instead of deleting
+  known_hosts before every connection
+* default SSH root login to off; opt-in at install time
+* fixed the remote-command channel (was non-functional) and added optional
+  HMAC-SHA256 authentication of command files
+* generate ed25519 keys instead of RSA
+* dropped deprecated apt --force-yes; use DEBIAN_FRONTEND=noninteractive
+* typed configuration loader, logging, targeted exceptions, unit tests,
+  ruff + mypy, and GitHub Actions CI
+* earlier: updated codebase to python3
 
 ~~~~~~~~~~~~~~~
 version 1.3.3

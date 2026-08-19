@@ -1,92 +1,171 @@
 # The TrustedSec Attack Platform (TAP)
 
-TAP - Remote penetration testing platform builder.\
-Written by: David Kennedy @HackingDave \
-Company: TrustedSec (https://www.trustedsec.com) \
-Project page: https://github.com/trustedsec/tap \
-A TrustedSec Project - Copyright 2020 \
-Supported operating systems: Linux (Ubuntu Linux preferred)
+**TAP** is a remote penetration-testing dropbox builder.
 
-## What is the TAP?
+- Written by: David Kennedy ([@HackingDave](https://github.com/HackingDave))
+- Company: TrustedSec (<https://www.trustedsec.com>)
+- Project page: <https://github.com/trustedsec/tap>
+- Supported OS: Linux (Debian/Ubuntu preferred)
 
-TAP is a remote penetration testing platform builder. For folks in the security industry, traveling often times becomes a burden and adds a ton of cost to the customer. TAP was designed to make the deployment of these boxes super simple and create a self-healing and stable platform to deploy remote penetration testing platforms. Essentially the concept is simple, you pre-configure a brand new box and run the TAP setup file. This will install a service on Linux that will be configured the way you want. What it will do is establish a reverse SSH tunnel back to a machine thats exposed on the Internet for you. From there you can access the box locally from the server it connects back to. TAP automatically detects when an SSH connection has gone stale and will automatically rebuild it for you. 
+## What is TAP?
 
-It also has a number of other options, for example, in the event you lose SSH, it'll connect out to a text file and execute commands for you. Also updates itself continiously as well as ensure that you are running the latest packages for Ubuntu Linux (if that is your OS).
+For folks in the security industry, travel adds real cost and burden to an
+engagement. TAP makes deploying a remote testing box simple, self-healing, and
+stable. You pre-configure a fresh machine, run the TAP installer, and it stands
+up a service that establishes a **reverse SSH tunnel** back to a server you
+control on the Internet. From that server you can reach the dropbox locally.
+TAP detects when the tunnel goes stale and rebuilds it automatically.
 
-## TAP Installation
-```
-python setup.py - This will install TAP.
-```
+If the tunnel is lost entirely, TAP can also poll a URL for a command file and
+execute it — a fallback control path to recover the box.
 
-In order to uninstall TAP:
+## What changed in 2.0
 
-```
-python setup.py - This will uninstall TAP.
-```
-## TAP Instructions
+Version 2.0 is a modernization of the codebase:
 
-When setting up TAP, the questions you may have is the REMOTE ssh server, this would be an external box you have with SSH exposed. This would be your box you want the TAP machine to connect back to, the machine you have on the Internet waiting for connections. It is not recommended to use root as this is a security oversight. Use a normal user to establish the SSH tunnel. Right now its password only although lateron we will be adding support for SSH keys. The password is stored using AES however the cipher key storage is insecure at the moment. Someone with maintained access to the box could grab the cipher key and decrypt the password in the config with enough time and persistence. Will fix this in a later release date.
+- Installs as a proper Python package (`pip`/`uv`) exposing a single `tap` CLI.
+- Managed by **systemd** (`tap.service`) instead of the old init.d + heartbeat
+  chain; liveness is handled by `Restart=always`.
+- Password storage now uses real authenticated encryption (**AES-256-GCM**),
+  replacing the previous broken ECB scheme.
+- SSH host keys are **verified** (`StrictHostKeyChecking=accept-new`) instead of
+  `known_hosts` being wiped before every connection.
+- Root SSH login defaults to **off**; enable it explicitly at install time.
+- The remote-command channel is fixed and supports optional **HMAC-SHA256**
+  authentication of command files.
+- Typed configuration, `logging`, targeted error handling, tests, linting
+  (ruff), type checking (mypy), and CI.
 
-The second is the LOCAL port that will be on the REMOTE box. When TAP connects back via reverse SSH, it connects to the REMOTE box and establishes a local port on the machine. When you SSH to the remote box on the Internet, you will want to ssh user@localhost -p <LOCAL PORT>. This will be the port TAP bindes to on the REMOTE system so you can access it. 
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
-Once you configure that, TAP has a default path it pulls updates from, you can change this to your own update path. I intentionally kept this off github so you can specify what you want for approved updates.
+## Installation
 
-Next, you can send commands to the TAP, it checks every two minutes for new instructions. You need to specify a path, for example:
+TAP requires Python 3.11+ and must be installed and run as **root** on the
+dropbox.
 
-https://websiteurl/commands.txt
-
-TAP will check that path every two minutes looking for new commands, note that this next part is IMPORTANT. The first line of the text file MUST contain "EXECUTE COMMAND" (without the double quotes). Once TAP identifies this, it will check to see if the command was executed before and if not it will execute the commands line by line. This is useful when you lose connection with TAP and need to call execute commands to fix it.
-
-Once you run setup, it will install the files in /usr/share/tap. It will automatically start if you specify, and will automatically check for updates such as Debian updates, TAP updates, etc. 
-
-You should also whitelist the update servers if you are using Debian as well as your REMOTE box you connect back to.
-
-Thats it! 
-
-In the event that you decide not to use SSH keys and use passwords, the config stores it in an AES format (requires python-pycrypto). If you need to update the password, go to the scripts directory which has an update-password script to update the encrypted password and create a new dynamic cipher key.
-
-Also a neat trick once you are there is a small tool we wrote for basically a SSH VPN. This works out great if you aren't
-doing large traffic volumes such as port scans, vulnerability scans, etc. The below is a simple tool that wraps sshuttle to create the VPN. Just save the below file into a python file and run and use the commands. It'll VPN you in to the remote network where TAP is deployed. You can do anything such as long as it isn't extremely large volume traffic (pretty stable).
-
-
-There's two ways to handle a VPN, first is through the method below with SSHuttle. You can also use a transparent VPN that was created by Geoff Walton at TrustedSec that is located in the under the scripts folder. This will create a TAP interface and VPN you into the system through SSH. With SSHuttle, things like port scans do not work properly, would highly recommend the ssh-tunnel script.
-
-## SSHUTTLE Tunneling Script
-
-SSHUTTLE is a tool that allows you to use SSH as a method for a transparent proxy VPN. You can use this script to communicate with the remote TAP device and tunnel your system over the proxy for a full VPN. This allows you to do testing through your own device, and not leverage the TAP device itself. 
-
-```import os 
-import subprocess 
-import time
-
-if not os.path.isfile("/usr/sbin/sshuttle"): 
-    print "[!] SSHUTTLE does not appear to be installed, installing now" 
-    subprocess.Popen("apt-get install sshuttle -f", shell=True).wait() 
-
-print("Welcome to the sshuttle wrapper for TAP.") 
-print("Enter the address for the SSH server, i.e. box.sshserver.com") 
-reverse1 = input("Enter SSH server (REMOTE server): ") 
-reverse2 = input("Enter the remote SSH port for %s:: " % (reverse1)) 
-reverse3 = input("Enter the port to tunnel for the  local TAP machine (i.e. TAP box localhost port): ") 
-reverse4 = input("Enter the username to connect to REMOTE system: ") 
-print)"Triggering tunnel now...") 
-time.sleep(2)
-subprocess.Popen("ssh -f %s@%s -L %s:localhost:%s -N" % (reverse4, reverse1, reverse3, reverse2), shell=True).wait()
-subprocess.Popen("sshuttle --dns -vr %s@localhost:%s 0/0" % (reverse4,reverse3), shell=True).wait()
+```bash
+# from a checkout of this repo
+sudo pip install .
+# or, with uv
+sudo uv pip install --system .
 ```
 
-## Using Proxy Chains
+Then configure and install the service:
 
-TAP uses proxychains4 (proxychains-ng) to tunnel all of your http/https traffic through SSH to your remote box. This 
-helps with content/egress filtering so you can ensure you always have everything up-to-date. In order to use proxychains, 
-just type proxychains4 <command_you_want_to_use> - TAP updates automatically use this.
+```bash
+sudo tap install
+```
+
+The installer prompts for the remote SSH server, ports, authentication method
+(SSH keys are the recommended default), and optional remote-command URL. It
+writes `/usr/share/tap/config`, configures `sshd`, installs the systemd unit,
+and offers to start TAP immediately.
+
+### Uninstall
+
+```bash
+sudo tap uninstall
+```
+
+## The `tap` command
+
+| Command          | Description                                              |
+| ---------------- | ------------------------------------------------------- |
+| `tap install`    | Configure the host and install the TAP service (root).  |
+| `tap uninstall`  | Remove TAP and its service from the host (root).        |
+| `tap run`        | Run the reverse-SSH supervisor loop (used by systemd).  |
+| `tap stop`       | Stop a running TAP daemon.                              |
+| `tap update`     | Update the TAP codebase per the config.                 |
+| `tap passwd`     | Re-encrypt and store a new SSH password.                |
+
+## Accessing the dropbox
+
+When TAP connects back to your remote server it binds a **local port** there.
+From the remote server:
+
+```bash
+ssh username@localhost -p <LOCAL_PORT>
+```
+
+Use a **non-root** account on the remote server for the tunnel — it only needs
+to hold the reverse port forward, not privileged access.
+
+## Authentication
+
+SSH keys are the recommended (and default) method. TAP generates an
+**ed25519** key pair and uploads the public key to your remote server during
+`tap install`.
+
+If you choose password authentication, the password is encrypted at rest with
+AES-256-GCM using a per-box key stored in `/root/.tap/store` (mode `0600`).
+Note this is obfuscation-at-rest, not a secret split from its key: a root
+attacker with persistent access to the box can still recover it. **Prefer SSH
+keys.** To rotate a stored password later, run `sudo tap passwd`.
+
+## Remote command channel
+
+Set a `COMMAND_UPDATES` URL (HTTPS recommended) in the config and TAP polls it
+every two minutes. The file format is:
+
+```
+SIGNATURE=<hex hmac-sha256 of everything below this line>   # optional
+EXECUTE COMMANDS
+<shell command 1>
+<shell command 2>
+```
+
+If you set `COMMAND_HMAC_KEY` in the config (or at install time), a valid
+`SIGNATURE=` line becomes **required** and unsigned/mis-signed files are
+refused. Each distinct file is executed once. To generate a signature:
+
+```bash
+printf 'EXECUTE COMMANDS\nid\nwhoami\n' > payload.txt
+sig=$(openssl dgst -sha256 -hmac "$COMMAND_HMAC_KEY" -hex payload.txt | awk '{print $NF}')
+{ echo "SIGNATURE=$sig"; cat payload.txt; } > commands.txt
+```
+
+## Proxychains
+
+TAP configures `proxychains4` (proxychains-ng) to tunnel HTTP/HTTPS traffic
+through the SSH SOCKS proxy. Prefix a command with `proxychains4` to route it
+over the tunnel, e.g. `proxychains4 apt-get update`.
+
+## SSH VPN tunneling
+
+Two options for a full VPN into the remote network:
+
+1. **sshuttle** — good for low-volume traffic. Install `sshuttle`, then forward
+   the TAP local port and point sshuttle at it:
+
+   ```bash
+   ssh -f user@remote-server -L 10003:localhost:22 -N
+   sshuttle --dns -vr user@localhost:10003 0/0
+   ```
+
+   Note: port scans and other high-volume traffic do not work well over
+   sshuttle — prefer the transparent VPN below for those.
+
+2. **Transparent VPN** — `scripts/ssh-tunnel.sh` (by Geoff Walton, TrustedSec)
+   creates a `tun` interface and VPNs you into the system over SSH. Run it as
+   root; `-h` prints usage.
 
 ## Logging
 
-TAP during the setup process will prompt you to see if you want to log all commands executed on the system. If you do, 
-all commands that are entered on the system will be logged so that you can provide to the customer or keep records of 
-what happened on the devices. All logs are saved under /var/log/messages.
+If enabled at install time (`LOG_EVERYTHING`), every command run over SSH on the
+dropbox is logged to syslog (`/var/log/messages`), so you can hand records to
+the customer.
 
-## Supported Operating Systems
+## Development
 
-Ubuntu 18.04 LTS (should work fine on debian and other ubuntu versions)
+```bash
+uv venv && uv pip install -e ".[dev]"
+ruff check . && ruff format --check .
+mypy src/tap
+pytest
+```
+
+CI runs the same checks across Python 3.11–3.14.
+
+## Supported operating systems
+
+Debian/Ubuntu with systemd. Tested against current Ubuntu LTS releases.
