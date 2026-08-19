@@ -1,9 +1,10 @@
 """Host installation, configuration, and removal for TAP.
 
-Replaces the imperative top-level ``setup.py``. Exposes :func:`install`,
-:func:`uninstall`, and :func:`update_password`, invoked via the ``tap`` CLI.
-System-level side effects (apt, sshd, systemd) live here; the pure
-transformations are factored out so they can be unit-tested.
+Replaces the imperative top-level ``setup.py``. Exposes :func:`install` and
+:func:`uninstall`, invoked via the ``tap`` CLI. Authentication is key-only, so
+there is no password handling here. System-level side effects (apt, sshd,
+systemd) live here; the pure transformations are factored out so they can be
+unit-tested.
 """
 
 from __future__ import annotations
@@ -16,11 +17,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pexpect
-
 from tap import INSTALL_DIR, data_path
 from tap.config import CONFIG_PATH, TapConfig
-from tap.crypto import encrypt_password
 from tap.ssh import PRIVATE_KEY
 
 log = logging.getLogger("tap.install")
@@ -145,26 +143,33 @@ def generate_ssh_key() -> None:
     )
 
 
-def upload_public_key(cfg: TapConfig, one_time_password: str) -> None:
-    pub = PRIVATE_KEY.with_suffix(".pub").read_text().strip()
-    hostname = (
-        Path("/etc/hostname").read_text().strip() if Path("/etc/hostname").is_file() else "tap"
-    )
+def upload_public_key(cfg: TapConfig) -> None:
+    """Install the public key on the remote server via ``ssh-copy-id``.
+
+    ``ssh-copy-id`` prompts the operator for the remote password directly on the
+    terminal (one time), so no password is captured or stored by TAP.
+    """
     target = f"{cfg.username}@{cfg.ipaddr}"
-    log.info("Uploading public key to %s (one-time password prompt).", target)
-    command = (
-        f"ssh -o StrictHostKeyChecking=accept-new {target} -p {cfg.port} "
-        f'"mkdir -p ~/.ssh && chmod 700 ~/.ssh && '
-        f"printf '# TAP box: {hostname}\\n{pub}\\n' >> ~/.ssh/authorized_keys\""
+    pub = PRIVATE_KEY.with_suffix(".pub")
+    log.info("Uploading public key to %s via ssh-copy-id (you'll be prompted once).", target)
+    result = subprocess.run(
+        [
+            "ssh-copy-id",
+            "-i",
+            str(pub),
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-p",
+            cfg.port,
+            target,
+        ],
+        check=False,
     )
-    child = pexpect.spawn(command, encoding="utf-8", timeout=60)
-    idx = child.expect(["assword", pexpect.EOF, pexpect.TIMEOUT])
-    if idx == 0:
-        child.sendline(one_time_password)
-        child.expect([pexpect.EOF, pexpect.TIMEOUT])
-    child.close()
-    if child.exitstatus not in (0, None):
-        log.warning("Key upload exited with status %s; verify manually.", child.exitstatus)
+    if result.returncode != 0:
+        log.warning(
+            "ssh-copy-id exited with status %s; install the key manually if needed.",
+            result.returncode,
+        )
 
 
 # --------------------------------------------------------------------------
@@ -188,9 +193,7 @@ def _yesno(text: str, default: bool = False) -> bool:
 
 def collect_config() -> TapConfig:
     print("\n=== TAP configuration ===")
-    use_keys = _yesno("Use SSH keys (recommended)? Choose 'no' for password auth", default=True)
-
-    cfg = TapConfig(ssh_keys="ON" if use_keys else "OFF")
+    cfg = TapConfig()
     cfg.ipaddr = _prompt("Remote SSH host/IP to call back to")
     cfg.port = _prompt("Remote SSH port", "22")
     cfg.username = _prompt("Username on the REMOTE server (root not recommended)", "tap")
@@ -205,16 +208,14 @@ def collect_config() -> TapConfig:
     if _yesno("Allow root login over SSH on THIS box? (not recommended)", default=False):
         cfg.permit_root_login = "yes"
 
-    if use_keys:
-        if _yesno("Generate a new SSH key pair?", default=True):
-            generate_ssh_key()
-        if not _yesno("Is the public key already installed on the remote server?", default=False):
-            one_time = getpass.getpass("Remote SSH password (one time, to upload the key): ")
-            upload_public_key(cfg, one_time)
-    else:
-        print("[!] Password authentication is discouraged; SSH keys are safer.")
-        password = getpass.getpass(f"Password for {cfg.username}@{cfg.ipaddr}: ")
-        cfg.password = encrypt_password(password)
+    # Key-only authentication.
+    if _yesno("Generate a new SSH key pair?", default=True):
+        generate_ssh_key()
+    elif not PRIVATE_KEY.is_file():
+        print(f"[!] No key found at {PRIVATE_KEY}; generating one.")
+        generate_ssh_key()
+    if not _yesno("Is the public key already installed on the remote server?", default=False):
+        upload_public_key(cfg)
 
     return cfg
 
@@ -260,15 +261,6 @@ def uninstall() -> None:
     if INSTALL_DIR.is_dir():
         shutil.rmtree(INSTALL_DIR, ignore_errors=True)
     print("[*] TAP has been uninstalled.")
-
-
-def update_password() -> None:
-    cfg = TapConfig.load()
-    password = getpass.getpass("Enter the new SSH password to encrypt and store: ")
-    cfg.password = encrypt_password(password)
-    cfg.ssh_keys = "OFF"
-    cfg.save()
-    print("[*] Password re-encrypted and stored.")
 
 
 def _install_ptf() -> None:

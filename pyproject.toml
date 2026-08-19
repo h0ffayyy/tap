@@ -22,10 +22,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
 ]
-dependencies = [
-    "pexpect>=4.9",
-    "pycryptodome>=3.20",
-]
+# Runtime uses only the Python standard library plus the system `ssh`,
+# `ssh-copy-id`, and `ss` binaries. Key-only auth means no pexpect/crypto deps.
+dependencies = []
 
 [project.optional-dependencies]
 dev = [

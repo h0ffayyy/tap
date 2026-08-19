@@ -16,7 +16,8 @@ def test_parser_builds_and_lists_subcommands():
     subactions = [a for a in parser._actions if a.__class__.__name__ == "_SubParsersAction"]
     assert subactions, "expected a subparser group"
     choices = set(subactions[0].choices)
-    assert {"install", "uninstall", "run", "stop", "update", "passwd"} <= choices
+    assert {"install", "uninstall", "run", "stop", "update"} <= choices
+    assert "passwd" not in choices  # password auth removed (key-only)
 
 
 def test_no_command_errors():

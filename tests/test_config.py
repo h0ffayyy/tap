@@ -16,8 +16,7 @@ def test_roundtrip_load_save(tmp_path):
         ipaddr="10.0.0.5",
         port="2222",
         local_port="10003",
-        ssh_keys="OFF",
-        password="ENCRYPTEDBLOB==",
+        command_hmac_key="s3cret",
     )
     path = tmp_path / "config"
     cfg.save(path)
@@ -25,19 +24,23 @@ def test_roundtrip_load_save(tmp_path):
     assert loaded.username == "tapuser"
     assert loaded.ipaddr == "10.0.0.5"
     assert loaded.port == "2222"
-    assert loaded.ssh_keys == "OFF"
-    assert loaded.password == "ENCRYPTEDBLOB=="
+    assert loaded.command_hmac_key == "s3cret"
 
 
 def test_typed_accessors():
-    cfg = TapConfig(ssh_keys="on", ssh_check_interval="90", auto_update="ON")
-    assert cfg.use_ssh_keys is True
+    cfg = TapConfig(ssh_check_interval="90", auto_update="ON")
     assert cfg.check_interval == 90
     assert cfg.auto_update_enabled is True
 
 
 def test_check_interval_falls_back_on_bad_value():
     assert TapConfig(ssh_check_interval="not-a-number").check_interval == 60
+
+
+def test_config_has_no_password_field():
+    # Key-only: password storage is gone entirely.
+    assert not hasattr(TapConfig(), "password")
+    assert "PASSWORD=" not in TapConfig().to_text()
 
 
 def test_saved_file_is_root_only(tmp_path):

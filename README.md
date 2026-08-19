@@ -11,9 +11,11 @@ when it drops, and can optionally poll a URL for commands as a fallback control
 path if the tunnel is lost entirely.
 
 > **2.0** is a full modernization: an installable package with a single `tap`
-> CLI, systemd-managed service, AES-256-GCM password storage, verified SSH host
-> keys, root login off by default, and an optionally-authenticated command
-> channel. See [CHANGELOG.md](CHANGELOG.md).
+> CLI, systemd-managed service, **key-only** SSH auth (no passwords, no
+> `pexpect`), verified SSH host keys, root login off by default, and an
+> optionally-authenticated command channel. It has **no runtime dependencies**
+> beyond the standard library and the system `ssh` tools. See
+> [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
@@ -34,7 +36,6 @@ systemd unit, and offers to start TAP. Remove everything with `sudo tap uninstal
 | `tap install` / `tap uninstall` | Install or remove TAP on the host (root). |
 | `tap run` / `tap stop` | Run or stop the reverse-SSH supervisor (systemd uses these). |
 | `tap update` | Update the TAP codebase per the config. |
-| `tap passwd` | Re-encrypt and store a new SSH password. |
 
 ## Accessing the dropbox
 
@@ -48,11 +49,11 @@ Use a **non-root** account on the remote server for the tunnel.
 
 ## Authentication
 
-SSH keys are the default and recommended method — `tap install` generates an
-ed25519 pair and uploads the public key. Password auth is also supported; the
-password is stored with AES-256-GCM under a per-box key in `/root/.tap/store`.
-This is obfuscation-at-rest (a root attacker can still recover it), so **prefer
-keys**. Rotate a stored password with `sudo tap passwd`.
+TAP is **key-only**. `tap install` generates an ed25519 key pair and uploads
+the public key to your remote server with `ssh-copy-id` (which prompts you for
+the remote password once — TAP never stores it). The tunnel then runs with
+`BatchMode=yes`, so ssh never prompts and no secret lives on the box. Resilience
+comes from ssh's own keepalives plus the supervisor's reconnect loop.
 
 ## Remote command channel
 

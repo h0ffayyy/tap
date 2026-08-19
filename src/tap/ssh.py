@@ -1,54 +1,56 @@
-"""Reverse-SSH tunnel management.
+"""Reverse-SSH tunnel management (keys-only).
 
-Ported from the historical ``ssh_run`` with three notable changes:
+TAP authenticates with an SSH key and ``BatchMode=yes``, so ssh never prompts
+interactively -- which means no ``pexpect`` and no stored password. A single
+ssh process carries both the reverse port-forward and the SOCKS proxy; ssh's
+own keepalives (``ServerAliveInterval``) make it exit when the link dies, and
+the daemon's outer loop reconnects with backoff. (``autossh`` could be dropped
+in here as a resilience layer, but ssh keepalives plus the supervisor loop
+cover the same ground without an extra dependency.)
 
-* Host keys are verified (``StrictHostKeyChecking=accept-new``) instead of
-  ``known_hosts`` being deleted before every connection, which had silently
-  disabled MITM protection.
-* Connect and monitor are separated: :func:`serve` raises when the tunnel
-  drops so the daemon's outer loop owns retry/backoff.
-* ``logging`` and targeted error handling replace ``print`` and bare ``except``.
+Host keys are verified (``StrictHostKeyChecking=accept-new``); the command is
+built as an argument list, so there is no shell to inject into.
 """
 
 from __future__ import annotations
 
 import logging
 import subprocess
-import time
 from pathlib import Path
-
-import pexpect
 
 from tap.config import TapConfig
 
 log = logging.getLogger("tap.ssh")
 
 PRIVATE_KEY = Path("/root/.ssh/id_ed25519")
-_INITIAL_SETTLE_SECONDS = 5
-_PASSWORD_PROMPT = "assword"
+_TERMINATE_GRACE_SECONDS = 5
 
 
 def _common_opts(cfg: TapConfig) -> list[str]:
-    opts = [
+    return [
+        "-o",
+        "BatchMode=yes",
         "-o",
         "StrictHostKeyChecking=accept-new",
         "-o",
         "ServerAliveInterval=15",
         "-o",
-        "ServerAliveCountMax=4",
+        "ServerAliveCountMax=3",
         "-o",
         "ExitOnForwardFailure=yes",
+        "-i",
+        str(PRIVATE_KEY),
     ]
-    if cfg.use_ssh_keys:
-        opts += [
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "PasswordAuthentication=no",
-            "-i",
-            str(PRIVATE_KEY),
-        ]
-    return opts
+
+
+def tunnel_command(cfg: TapConfig) -> list[str]:
+    """Build the ssh argument list for the reverse tunnel (+ SOCKS if set)."""
+    cmd = ["ssh", "-N", *_common_opts(cfg)]
+    cmd += ["-R", f"127.0.0.1:{cfg.local_port}:127.0.0.1:22"]
+    if cfg.socks_proxy_port:
+        cmd += ["-D", f"127.0.0.1:{cfg.socks_proxy_port}"]
+    cmd += [f"{cfg.username}@{cfg.ipaddr}", "-p", cfg.port]
+    return cmd
 
 
 def _fix_key_perms() -> None:
@@ -69,73 +71,28 @@ def kill_stale_tunnels(port: str) -> None:
                     subprocess.run(["kill", pid], check=False)
 
 
-def _spawn_with_password(command: str, password: str) -> pexpect.spawn:
-    """Spawn an ssh command, answering a password prompt if one appears."""
-    child = pexpect.spawn(command, encoding="utf-8", timeout=60)
-    index = child.expect([_PASSWORD_PROMPT, "Last login", pexpect.EOF, pexpect.TIMEOUT])
-    if index == 0:
-        child.sendline(password)
-    return child
+def serve(cfg: TapConfig) -> None:
+    """Establish the tunnel and block until it drops.
 
-
-def _reverse_tunnel_cmd(cfg: TapConfig) -> str:
-    opts = " ".join(_common_opts(cfg))
-    return (
-        f"ssh -N {opts} "
-        f"-R 127.0.0.1:{cfg.local_port}:127.0.0.1:22 "
-        f"{cfg.username}@{cfg.ipaddr} -p {cfg.port}"
-    )
-
-
-def _socks_cmd(cfg: TapConfig) -> str:
-    opts = " ".join(_common_opts(cfg))
-    return f"ssh -N {opts} -D {cfg.socks_proxy_port} " f"{cfg.username}@{cfg.ipaddr} -p {cfg.port}"
-
-
-def _tunnel_is_listening(cfg: TapConfig, password: str) -> bool:
-    """Check, over the control connection, that the remote port is LISTENing."""
-    opts = " ".join(_common_opts(cfg))
-    check = (
-        f"ssh {opts} {cfg.username}@{cfg.ipaddr} -p {cfg.port} "
-        f"\"ss -ant | grep -q ':{cfg.local_port}.*LISTEN' && echo TAP_UP || echo TAP_DOWN\""
-    )
-    try:
-        child = _spawn_with_password(check, password)
-        idx = child.expect(["TAP_UP", "TAP_DOWN", pexpect.EOF, pexpect.TIMEOUT])
-        child.close()
-        return idx == 0
-    except pexpect.ExceptionPexpect:
-        return False
-
-
-def serve(cfg: TapConfig, password: str) -> None:
-    """Establish the reverse tunnel and monitor it until it drops.
-
-    Raises :class:`ConnectionError` when the tunnel can no longer be verified,
-    so the caller can reconnect.
+    Raises :class:`ConnectionError` when ssh exits, so the caller reconnects.
+    Propagates :class:`KeyboardInterrupt` (e.g. SIGTERM) after tearing the
+    child down cleanly.
     """
     _fix_key_perms()
     kill_stale_tunnels(cfg.port)
 
+    cmd = tunnel_command(cfg)
     log.info("Initializing reverse SSH tunnel to %s:%s", cfg.ipaddr, cfg.port)
-    tunnel = _spawn_with_password(_reverse_tunnel_cmd(cfg), password)
-    time.sleep(_INITIAL_SETTLE_SECONDS)
-
-    socks: pexpect.spawn | None = None
+    log.debug("ssh command: %s", " ".join(cmd))
+    proc = subprocess.Popen(cmd)
     try:
-        while True:
-            if not tunnel.isalive():
-                raise ConnectionError("Reverse tunnel process exited.")
-            if not _tunnel_is_listening(cfg, password):
-                raise ConnectionError("Remote port is no longer listening.")
-
-            if cfg.socks_proxy_port and (socks is None or not socks.isalive()):
-                log.info("Establishing SOCKS proxy on remote port %s", cfg.socks_proxy_port)
-                socks = _spawn_with_password(_socks_cmd(cfg), password)
-
-            log.debug("Tunnel healthy; sleeping %ss", cfg.check_interval)
-            time.sleep(cfg.check_interval)
+        status = proc.wait()
     finally:
-        for child in (socks, tunnel):
-            if child is not None and child.isalive():
-                child.terminate(force=True)
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=_TERMINATE_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    raise ConnectionError(f"ssh tunnel exited (status {status}).")

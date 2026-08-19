@@ -1,8 +1,8 @@
 """TAP supervisor daemon.
 
-Replaces the old top-level ``tap.py``. Loads config, launches the remote
-command poller in a background thread, and keeps the reverse-SSH tunnel up with
-bounded exponential backoff between reconnect attempts.
+Loads config, launches the remote command poller in a background thread, and
+keeps the reverse-SSH tunnel up with bounded exponential backoff between
+reconnect attempts. Authentication is key-only, so no secrets are handled here.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import time
 
 from tap import commands, ssh
 from tap.config import TapConfig
-from tap.crypto import decrypt_password
 
 log = logging.getLogger("tap.daemon")
 
@@ -27,7 +26,6 @@ def run() -> None:
     """Run the supervisor loop until interrupted."""
     _install_signal_handlers()
     cfg = TapConfig.load()
-    password = decrypt_password(cfg.password) if not cfg.use_ssh_keys else ""
 
     if cfg.command_updates:
         poller = threading.Thread(
@@ -38,8 +36,7 @@ def run() -> None:
     backoff = _MIN_BACKOFF
     while True:
         try:
-            ssh.serve(cfg, password)
-            backoff = _MIN_BACKOFF  # a clean return means we chose to reconnect
+            ssh.serve(cfg)
         except KeyboardInterrupt:
             log.info("Interrupted; shutting down TAP.")
             break

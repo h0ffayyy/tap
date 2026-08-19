@@ -7,7 +7,6 @@ Dispatches the top-level subcommands:
     tap run         run the reverse-SSH supervisor loop (invoked by systemd)
     tap stop        stop a running TAP daemon
     tap update      pull the latest TAP codebase / config-driven update
-    tap passwd      re-encrypt and store a new SSH password
 
 Implementation modules are imported lazily inside each handler so the CLI
 itself stays importable even on hosts missing the system-level dependencies.
@@ -65,14 +64,6 @@ def _cmd_update(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_passwd(_args: argparse.Namespace) -> int:
-    _require_root()
-    from tap import install
-
-    install.update_password()
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tap",
@@ -89,7 +80,6 @@ def build_parser() -> argparse.ArgumentParser:
         "run": (_cmd_run, "Run the reverse-SSH supervisor loop (used by systemd)."),
         "stop": (_cmd_stop, "Stop a running TAP daemon."),
         "update": (_cmd_update, "Update the TAP codebase per the config."),
-        "passwd": (_cmd_passwd, "Re-encrypt and store a new SSH password."),
     }
     for name, (func, help_text) in handlers.items():
         p = sub.add_parser(name, help=help_text)

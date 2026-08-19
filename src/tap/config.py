@@ -43,7 +43,6 @@ class TapConfig:
     port: str = "22"
     local_port: str = "10003"
     socks_proxy_port: str = "10004"
-    ssh_keys: str = "ON"
     command_updates: str = ""
     auto_update: str = "OFF"
     update_server: str = "git pull"
@@ -53,14 +52,8 @@ class TapConfig:
     # Optional shared secret; when set, remote command files must carry a valid
     # HMAC-SHA256 signature line or they are refused (see tap.commands).
     command_hmac_key: str = field(default="", repr=False)
-    # Encrypted password blob (empty when using SSH keys).
-    password: str = field(default="", repr=False)
 
     # --- typed convenience accessors -------------------------------------
-
-    @property
-    def use_ssh_keys(self) -> bool:
-        return self.ssh_keys.strip().lower() == "on"
 
     @property
     def check_interval(self) -> int:
@@ -99,7 +92,6 @@ class TapConfig:
             f"PORT={self.port}",
             f"LOCAL_PORT={self.local_port}",
             f"SOCKS_PROXY_PORT={self.socks_proxy_port}",
-            f"SSH_KEYS={self.ssh_keys}",
             "",
             "# Update Settings",
             f"COMMAND_UPDATES={self.command_updates}",
@@ -115,9 +107,6 @@ class TapConfig:
             "",
             "# Logging (log every SSH command to syslog)",
             f"LOG_EVERYTHING={self.log_everything}",
-            "",
-            "# Password (AES-256-GCM encrypted; empty when using SSH keys)",
-            f"PASSWORD={self.password}",
             "",
         ]
         return "\n".join(lines)

@@ -8,8 +8,13 @@ version 2.0
   (install / uninstall / run / stop / update / passwd)
 * replaced the imperative setup.py and init.d + heartbeat supervision with a
   systemd service (Restart=always handles liveness)
-* fixed password encryption: real AES-256-GCM with a per-box key, replacing the
-  previously broken/unauthenticated ECB scheme
+* key-only SSH authentication: removed password auth entirely, along with
+  pexpect and the password-encryption code; the tunnel runs BatchMode=yes and
+  no secret is stored on the box (keys uploaded via ssh-copy-id at install)
+* no runtime dependencies: TAP now uses only the standard library plus the
+  system ssh tooling (dropped pexpect and pycryptodome)
+* the tunnel supervisor is plain subprocess + ssh keepalives + reconnect
+  backoff instead of a hand-rolled pexpect monitor loop
 * verify SSH host keys (StrictHostKeyChecking=accept-new) instead of deleting
   known_hosts before every connection
 * default SSH root login to off; opt-in at install time
