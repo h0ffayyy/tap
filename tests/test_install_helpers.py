@@ -21,9 +21,12 @@ def test_set_sshd_option_appends_when_absent():
 
 
 def test_render_service_substitutes_binary():
-    out = install.render_service("/usr/local/bin/tap")
+    # install_service() passes "<interpreter> -m tap.cli" so the unit works
+    # from a venv/pipx install without a PATH lookup.
+    out = install.render_service("/opt/tap/bin/python -m tap.cli")
     assert "__TAP_BIN__" not in out
-    assert "ExecStart=/usr/local/bin/tap run" in out
+    assert "ExecStart=/opt/tap/bin/python -m tap.cli run" in out
+    assert "ExecStop=/opt/tap/bin/python -m tap.cli stop" in out
 
 
 def test_proxychains_conf_has_socks_line():

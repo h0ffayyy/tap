@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from tap import INSTALL_DIR, data_path
@@ -98,7 +99,11 @@ def write_proxychains(cfg: TapConfig) -> None:
 
 
 def install_service() -> None:
-    tap_bin = shutil.which("tap") or "/usr/local/bin/tap"
+    # Use the interpreter that is running the installer (its site-packages has
+    # `tap`), so the unit works whatever the install method: a /opt venv, pipx,
+    # or a --break-system-packages system install. This avoids a PATH lookup
+    # that fails when `tap` lives in a venv that isn't on root's PATH.
+    tap_bin = f"{sys.executable} -m tap.cli"
     log.info("Installing systemd service using %s.", tap_bin)
     SERVICE_PATH.write_text(render_service(tap_bin))
     subprocess.run(["systemctl", "daemon-reload"], check=False)

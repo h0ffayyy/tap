@@ -21,13 +21,30 @@ path if the tunnel is lost entirely.
 
 Requires Python 3.11+; install and run as **root** on the dropbox.
 
+Modern distros (Kali, Debian, Ubuntu 23.04+) block system-wide `pip install`
+(PEP 668), so install into a dedicated virtualenv:
+
 ```bash
-sudo pip install .        # or: sudo uv pip install --system .
-sudo tap install          # interactive: remote server, ports, auth method
+sudo python3 -m venv /opt/tap
+sudo /opt/tap/bin/pip install .
+sudo /opt/tap/bin/tap install     # interactive: remote server, ports, key upload
 ```
 
-The installer writes `/usr/share/tap/config`, configures `sshd`, installs the
-systemd unit, and offers to start TAP. Remove everything with `sudo tap uninstall`.
+The installer detects the interpreter it's running under, so the systemd unit
+points back at `/opt/tap` automatically — no PATH setup needed. It writes
+`/usr/share/tap/config`, configures `sshd`, installs the unit, and offers to
+start TAP. Remove everything with `sudo /opt/tap/bin/tap uninstall`.
+
+<details>
+<summary>Alternatives</summary>
+
+```bash
+sudo pipx install .                 # isolated venv, `tap` on PATH
+sudo pip install --break-system-packages .   # override PEP 668 (not recommended)
+```
+
+Both work — the systemd unit is wired from the running interpreter either way.
+</details>
 
 ## Commands
 
