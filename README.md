@@ -1,4 +1,4 @@
-# The TrustedSec Attack Platform (TAP)
+# The Trusted Access Platform (TAP)
 
 **TAP** is a remote penetration-testing dropbox builder, by David Kennedy
 ([@HackingDave](https://github.com/HackingDave)) /
@@ -13,9 +13,10 @@ path if the tunnel is lost entirely.
 > **2.0** is a full modernization: an installable package with a single `tap`
 > CLI, systemd-managed service, **key-only** SSH auth (no passwords, no
 > `pexpect`), verified SSH host keys, root login off by default, and an
-> optionally-authenticated command channel. It has **no runtime dependencies**
-> beyond the standard library and the system `ssh` tools. See
-> [CHANGELOG.md](CHANGELOG.md).
+> optionally-authenticated command channel. Its only runtime dependency is
+> [`rich`](https://github.com/Textualize/rich) for the installer's console
+> output; otherwise it leans on the standard library and the system `ssh`
+> tools. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 

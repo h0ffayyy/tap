@@ -67,7 +67,7 @@ def _cmd_update(_args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tap",
-        description="The TrustedSec Attack Platform - remote reverse-SSH pentest dropbox.",
+        description="The Trusted Access Platform - remote reverse-SSH pentest dropbox.",
     )
     parser.add_argument("--version", action="version", version=f"TAP {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging.")
@@ -92,11 +92,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(message)s",
-        stream=sys.stdout,
-    )
+    if args.command in ("install", "uninstall"):
+        # Interactive commands get the rich-styled console; the daemon and other
+        # commands keep plain logging so journald/systemd output stays plain.
+        from tap import ui
+
+        ui.configure_logging(args.verbose)
+    else:
+        logging.basicConfig(
+            level=logging.DEBUG if args.verbose else logging.INFO,
+            format="%(message)s",
+            stream=sys.stdout,
+        )
 
     return args.func(args)
 

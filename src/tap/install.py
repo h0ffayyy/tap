@@ -9,20 +9,17 @@ unit-tested.
 
 from __future__ import annotations
 
-import getpass
-import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from tap import INSTALL_DIR, data_path
+from tap import INSTALL_DIR, data_path, ui
 from tap.config import CONFIG_PATH, TapConfig
 from tap.ssh import PRIVATE_KEY
-
-log = logging.getLogger("tap.install")
 
 SSHD_CONFIG = Path("/etc/ssh/sshd_config")
 SERVICE_PATH = Path("/etc/systemd/system/tap.service")
@@ -68,19 +65,21 @@ def proxychains_conf(socks_port: str) -> str:
 
 
 def install_system_packages() -> None:
-    log.info("Installing system packages: %s", " ".join(APT_PACKAGES))
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-    subprocess.run(["apt-get", "update"], check=False, env=env)
-    result = subprocess.run(["apt-get", "-y", "install", *APT_PACKAGES], check=False, env=env)
+    ui.run_step("Refreshing apt package index", ["apt-get", "update"], env=env)
+    result = ui.run_step(
+        f"Installing packages ({', '.join(APT_PACKAGES)})",
+        ["apt-get", "-y", "install", *APT_PACKAGES],
+        env=env,
+    )
     if result.returncode != 0:
-        log.warning("Package installation returned %s; continuing.", result.returncode)
+        ui.warn("Package installation reported an error; continuing.")
 
 
 def configure_sshd(cfg: TapConfig) -> None:
     if not SSHD_CONFIG.is_file():
-        log.warning("%s not found; skipping sshd configuration.", SSHD_CONFIG)
+        ui.warn(f"{SSHD_CONFIG} not found; skipping sshd configuration.")
         return
-    log.info("Configuring sshd (PermitRootLogin=%s).", cfg.permit_root_login)
     backup = SSHD_CONFIG.with_suffix(".tap.bak")
     if not backup.exists():
         shutil.copy2(SSHD_CONFIG, backup)
@@ -88,14 +87,15 @@ def configure_sshd(cfg: TapConfig) -> None:
     text = set_sshd_option(text, "PermitRootLogin", cfg.permit_root_login)
     text = set_sshd_option(text, "PermitTunnel", "point-to-point")
     SSHD_CONFIG.write_text(text)
-    subprocess.run(["systemctl", "restart", "ssh"], check=False)
+    ui.success(f"Wrote sshd config (PermitRootLogin={cfg.permit_root_login}, PermitTunnel=on)")
+    ui.run_step("Restarting ssh", ["systemctl", "restart", "ssh"])
 
 
 def write_proxychains(cfg: TapConfig) -> None:
     if not cfg.socks_proxy_port:
         return
-    log.info("Writing %s (socks5 127.0.0.1 %s).", PROXYCHAINS_CONF, cfg.socks_proxy_port)
     PROXYCHAINS_CONF.write_text(proxychains_conf(cfg.socks_proxy_port))
+    ui.success(f"Wrote {PROXYCHAINS_CONF} (socks5 127.0.0.1 {cfg.socks_proxy_port})")
 
 
 def install_service() -> None:
@@ -104,11 +104,11 @@ def install_service() -> None:
     # or a --break-system-packages system install. This avoids a PATH lookup
     # that fails when `tap` lives in a venv that isn't on root's PATH.
     tap_bin = f"{sys.executable} -m tap.cli"
-    log.info("Installing systemd service using %s.", tap_bin)
     SERVICE_PATH.write_text(render_service(tap_bin))
-    subprocess.run(["systemctl", "daemon-reload"], check=False)
-    subprocess.run(["systemctl", "enable", "tap.service"], check=False)
-    subprocess.run(["systemctl", "enable", "ssh"], check=False)
+    ui.success(f"Wrote {SERVICE_PATH}")
+    ui.run_step("Reloading systemd", ["systemctl", "daemon-reload"])
+    ui.run_step("Enabling tap.service", ["systemctl", "enable", "tap.service"])
+    ui.run_step("Enabling ssh", ["systemctl", "enable", "ssh"])
 
 
 def install_motd(client: str) -> None:
@@ -141,11 +141,13 @@ def generate_ssh_key() -> None:
     PRIVATE_KEY.parent.mkdir(mode=0o700, exist_ok=True)
     for key in (PRIVATE_KEY, PRIVATE_KEY.with_suffix(".pub")):
         key.unlink(missing_ok=True)
-    log.info("Generating a 4096-bit RSA SSH key pair at %s.", PRIVATE_KEY)
+    ui.info(f"Generating a 4096-bit RSA SSH key pair at {PRIVATE_KEY}…")
+    # Run directly (no spinner/capture): ssh-keygen writes progress to the tty.
     subprocess.run(
         ["ssh-keygen", "-t", "rsa", "-b", "4096", "-N", "", "-f", str(PRIVATE_KEY)],
         check=True,
     )
+    ui.success("Generated SSH key pair")
 
 
 def upload_public_key(cfg: TapConfig) -> None:
@@ -156,7 +158,9 @@ def upload_public_key(cfg: TapConfig) -> None:
     """
     target = f"{cfg.username}@{cfg.ipaddr}"
     pub = PRIVATE_KEY.with_suffix(".pub")
-    log.info("Uploading public key to %s via ssh-copy-id (you'll be prompted once).", target)
+    ui.info(f"Uploading public key to {target} via ssh-copy-id (you'll be prompted once)…")
+    # Run directly (no spinner/capture): ssh-copy-id prompts for the remote
+    # password on the terminal, which a Live display would swallow.
     result = subprocess.run(
         [
             "ssh-copy-id",
@@ -170,10 +174,12 @@ def upload_public_key(cfg: TapConfig) -> None:
         ],
         check=False,
     )
-    if result.returncode != 0:
-        log.warning(
-            "ssh-copy-id exited with status %s; install the key manually if needed.",
-            result.returncode,
+    if result.returncode == 0:
+        ui.success(f"Installed public key on {target}")
+    else:
+        ui.warn(
+            f"ssh-copy-id exited with status {result.returncode}; "
+            "install the key manually if needed."
         )
 
 
@@ -182,44 +188,29 @@ def upload_public_key(cfg: TapConfig) -> None:
 # --------------------------------------------------------------------------
 
 
-def _prompt(text: str, default: str = "") -> str:
-    suffix = f" [{default}]" if default else ""
-    value = input(f"{text}{suffix}: ").strip()
-    return value or default
-
-
-def _yesno(text: str, default: bool = False) -> bool:
-    d = "Y/n" if default else "y/N"
-    answer = input(f"{text} [{d}]: ").strip().lower()
-    if not answer:
-        return default
-    return answer in ("y", "yes")
-
-
 def collect_config() -> TapConfig:
-    print("\n=== TAP configuration ===")
     cfg = TapConfig()
-    cfg.ipaddr = _prompt("Remote SSH host/IP to call back to")
-    cfg.port = _prompt("Remote SSH port", "22")
-    cfg.username = _prompt("Username on the REMOTE server (root not recommended)", "tap")
-    cfg.local_port = _prompt("LOCAL port to expose on the remote server", "10003")
-    cfg.socks_proxy_port = _prompt("SOCKS proxy port on the remote server", "10004")
-    cfg.command_updates = _prompt("Remote command URL (optional, HTTPS)", "")
+    cfg.ipaddr = ui.ask("Remote SSH host/IP to call back to")
+    cfg.port = ui.ask("Remote SSH port", "22")
+    cfg.username = ui.ask("Username on the REMOTE server (root not recommended)", "tap")
+    cfg.local_port = ui.ask("LOCAL port to expose on the remote server", "10003")
+    cfg.socks_proxy_port = ui.ask("SOCKS proxy port on the remote server", "10004")
+    cfg.command_updates = ui.ask("Remote command URL (optional, HTTPS)", "")
     if cfg.command_updates:
-        cfg.command_hmac_key = getpass.getpass(
-            "Optional HMAC key to authenticate command files (blank to skip): "
+        cfg.command_hmac_key = ui.ask_secret(
+            "Optional HMAC key to authenticate command files (blank to skip)"
         ).strip()
     cfg.permit_root_login = "no"
-    if _yesno("Allow root login over SSH on THIS box? (not recommended)", default=False):
+    if ui.confirm("Allow root login over SSH on THIS box? (not recommended)", default=False):
         cfg.permit_root_login = "yes"
 
     # Key-only authentication.
-    if _yesno("Generate a new SSH key pair?", default=True):
+    if ui.confirm("Generate a new SSH key pair?", default=True):
         generate_ssh_key()
     elif not PRIVATE_KEY.is_file():
-        print(f"[!] No key found at {PRIVATE_KEY}; generating one.")
+        ui.warn(f"No key found at {PRIVATE_KEY}; generating one.")
         generate_ssh_key()
-    if not _yesno("Is the public key already installed on the remote server?", default=False):
+    if not ui.confirm("Is the public key already installed on the remote server?", default=False):
         upload_public_key(cfg)
 
     return cfg
@@ -230,53 +221,62 @@ def collect_config() -> TapConfig:
 # --------------------------------------------------------------------------
 
 
+TOTAL_STEPS = 7
+
+
 def install() -> None:
-    print("=== TrustedSec Attack Platform (TAP) installer ===")
+    ui.banner()
+    started = time.monotonic()
     INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+
+    ui.step(1, TOTAL_STEPS, "Installing system packages")
     install_system_packages()
 
+    ui.step(2, TOTAL_STEPS, "Collecting configuration")
     cfg = collect_config()
     cfg.save()
-    print(f"[*] Configuration written to {CONFIG_PATH}")
+    ui.success(f"Configuration written to {CONFIG_PATH}")
 
+    ui.step(3, TOTAL_STEPS, "Configuring sshd")
     configure_sshd(cfg)
+
+    ui.step(4, TOTAL_STEPS, "Writing proxychains config")
     write_proxychains(cfg)
+
+    ui.step(5, TOTAL_STEPS, "Installing systemd service")
     install_service()
-    install_motd(_prompt("Client/engagement name for the MOTD (optional)", ""))
+
+    ui.step(6, TOTAL_STEPS, "Applying MOTD and desktop background")
+    install_motd(ui.ask("Client/engagement name for the MOTD (optional)", ""))
     set_background()
 
-    if _yesno("Start TAP now?", default=True):
-        subprocess.run(["systemctl", "start", "tap.service"], check=False)
-        print("[*] TAP service started.")
+    ui.step(7, TOTAL_STEPS, "Starting TAP")
+    started_service = ui.confirm("Start TAP now?", default=True)
+    if started_service:
+        ui.run_step("Starting tap.service", ["systemctl", "start", "tap.service"])
 
-    if _yesno("Install PTF (PenTesters Framework) now?", default=False):
-        _install_ptf()
-
-    print("[*] Installation complete.")
+    elapsed = time.monotonic() - started
+    ui.summary(
+        [
+            ("Remote target", f"{cfg.username}@{cfg.ipaddr}:{cfg.port}"),
+            ("Local port", cfg.local_port),
+            ("SOCKS port", cfg.socks_proxy_port),
+            ("SSH key", str(PRIVATE_KEY)),
+            ("Config", str(CONFIG_PATH)),
+            ("Service", "started" if started_service else "installed (not started)"),
+            ("Elapsed", f"{elapsed:.0f}s"),
+        ]
+    )
 
 
 def uninstall() -> None:
-    print("[*] Uninstalling TAP...")
-    subprocess.run(["systemctl", "stop", "tap.service"], check=False)
-    subprocess.run(["systemctl", "disable", "tap.service"], check=False)
+    ui.info("Uninstalling TAP…")
+    ui.run_step("Stopping tap.service", ["systemctl", "stop", "tap.service"])
+    ui.run_step("Disabling tap.service", ["systemctl", "disable", "tap.service"])
     SERVICE_PATH.unlink(missing_ok=True)
-    subprocess.run(["systemctl", "daemon-reload"], check=False)
+    ui.run_step("Reloading systemd", ["systemctl", "daemon-reload"])
     # Legacy init.d artifact from older versions.
     Path("/etc/init.d/tap").unlink(missing_ok=True)
     if INSTALL_DIR.is_dir():
         shutil.rmtree(INSTALL_DIR, ignore_errors=True)
-    print("[*] TAP has been uninstalled.")
-
-
-def _install_ptf() -> None:
-    ptf_dir = Path("/pentest/ptf")
-    try:
-        ptf_dir.parent.mkdir(parents=True, exist_ok=True)
-        if not ptf_dir.is_dir():
-            subprocess.run(
-                ["git", "clone", "https://github.com/trustedsec/ptf.git", str(ptf_dir)],
-                check=True,
-            )
-        print(f"[*] PTF cloned to {ptf_dir}. Run it with: cd {ptf_dir} && ./ptf")
-    except subprocess.CalledProcessError as exc:
-        log.warning("PTF installation failed: %s", exc)
+    ui.success("TAP has been uninstalled.")

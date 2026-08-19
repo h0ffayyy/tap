@@ -1,7 +1,7 @@
 [project]
 name = "tap"
 version = "2.0.0"
-description = "The TrustedSec Attack Platform - a remote penetration testing dropbox builder."
+description = "The Trusted Access Platform - a remote penetration testing dropbox builder."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
@@ -22,9 +22,12 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
 ]
-# Runtime uses only the Python standard library plus the system `ssh`,
-# `ssh-copy-id`, and `ss` binaries. Key-only auth means no pexpect/crypto deps.
-dependencies = []
+# Runtime uses the Python standard library plus the system `ssh`,
+# `ssh-copy-id`, and `ss` binaries. `rich` powers the interactive installer's
+# console output; key-only auth means no pexpect/crypto deps.
+dependencies = [
+    "rich>=13",
+]
 
 [project.optional-dependencies]
 dev = [

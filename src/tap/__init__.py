@@ -1,4 +1,4 @@
-"""The TrustedSec Attack Platform (TAP).
+"""The Trusted Access Platform (TAP).
 
 A remote penetration-testing dropbox builder: it installs a self-healing
 reverse-SSH tunnel back to a server you control, so a pre-configured box can
