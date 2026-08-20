@@ -1,0 +1,30 @@
+# TAP non-interactive provisioning specification.
+# The public key must already be authorized on the remote gateway before an
+# unattended installation can start the tunnel.
+schema_version = 1
+
+[connection]
+host = "gateway.example.com"
+port = 22
+username = "tap"
+remote_port = 10003
+socks_port = 10004
+
+[ssh]
+key_mode = "existing"
+private_key = "/etc/tap-secrets/dropbox-key"
+public_key = "/etc/tap-secrets/dropbox-key.pub"
+public_key_preinstalled = true
+permit_root_login = false
+
+# Optional. Keep the HMAC itself outside source control.
+#[commands]
+#url = "https://control.example.com/tap/commands"
+#hmac_key_file = "/etc/tap-secrets/command-hmac"
+
+[installation]
+install_packages = true
+configure_sshd = true
+configure_proxychains = true
+client_name = "example-engagement"
+start_service = true

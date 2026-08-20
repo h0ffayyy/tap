@@ -45,3 +45,8 @@ def test_tunnel_command_is_arg_list_not_shell_string():
     cmd = ssh.tunnel_command(_cfg())
     assert isinstance(cmd, list)
     assert all(isinstance(part, str) for part in cmd)
+
+
+def test_tunnel_command_uses_configured_identity_file():
+    cmd = ssh.tunnel_command(_cfg(identity_file="/etc/tap/key"))
+    assert cmd[cmd.index("-i") + 1] == "/etc/tap/key"

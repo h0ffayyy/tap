@@ -1,6 +1,6 @@
 # The Trusted Access Platform (TAP)
 
-**TAP** is a remote penetration-testing dropbox builder, by David Kennedy
+**TAP** is a remote access dropbox builder, by David Kennedy
 ([@HackingDave](https://github.com/HackingDave)) /
 [TrustedSec](https://www.trustedsec.com).
 
@@ -54,6 +54,29 @@ Both work — the systemd unit is wired from the running interpreter either way.
 | `tap install` / `tap uninstall` | Install or remove TAP on the host (root). |
 | `tap run` / `tap stop` | Run or stop the reverse-SSH supervisor (systemd uses these). |
 | `tap update` | Update the TAP codebase per the config. |
+| `tap status` | Show the local service, tunnel, key, and configuration state. |
+| `tap doctor` | Run read-only local and gateway health diagnostics. |
+| `tap config validate` / `tap config render` | Validate or safely render a TOML provisioning file. |
+
+## Unattended provisioning
+
+Use a versioned TOML file to deploy TAP from cloud-init or configuration
+management without prompts:
+
+```bash
+sudo tap config validate tap.toml
+sudo tap install --config tap.toml --non-interactive --dry-run
+sudo tap install --config tap.toml --non-interactive
+```
+
+Start from [`tap.example.toml`](tap.example.toml). An unattended deployment
+never uses password-based `ssh-copy-id`: its configured public key must already
+be authorized on the remote gateway before TAP can start. Use `--json` with
+`tap install`, `tap config`, `tap status`, or `tap doctor` for automation.
+
+Use `tap status --json` or `tap doctor --json` for automation. `status` stays
+local and fast; `doctor` also performs bounded gateway, host-key, and key-only
+SSH authentication checks. Both commands are read-only.
 
 ## Accessing the dropbox
 

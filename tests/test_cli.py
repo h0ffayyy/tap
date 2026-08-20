@@ -16,7 +16,16 @@ def test_parser_builds_and_lists_subcommands():
     subactions = [a for a in parser._actions if a.__class__.__name__ == "_SubParsersAction"]
     assert subactions, "expected a subparser group"
     choices = set(subactions[0].choices)
-    assert {"install", "uninstall", "run", "stop", "update"} <= choices
+    assert {
+        "install",
+        "uninstall",
+        "run",
+        "stop",
+        "update",
+        "status",
+        "doctor",
+        "config",
+    } <= choices
     assert "passwd" not in choices  # password auth removed (key-only)
 
 
@@ -24,3 +33,9 @@ def test_no_command_errors():
     parser = cli.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args([])
+
+
+def test_doctor_timeout_must_be_positive():
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["doctor", "--timeout", "0"])

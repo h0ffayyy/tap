@@ -48,7 +48,7 @@ def banner() -> None:
     """Render the boxed installer banner."""
     body = Text.assemble(
         ("Trusted Access Platform", "bold cyan"),
-        ("\nremote reverse-SSH pentest dropbox", "dim"),
+        ("\nremote reverse-SSH access dropbox", "dim"),
         (f"\nv{__version__}", "dim"),
         justify="center",
     )

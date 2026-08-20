@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from tap.config import TapConfig
@@ -24,6 +25,11 @@ log = logging.getLogger("tap.ssh")
 
 PRIVATE_KEY = Path("/root/.ssh/id_rsa")
 _TERMINATE_GRACE_SECONDS = 5
+
+
+def private_key(cfg: TapConfig) -> Path:
+    """Return the configured SSH identity, retaining the legacy default."""
+    return Path(cfg.identity_file) if cfg.identity_file else PRIVATE_KEY
 
 
 def _common_opts(cfg: TapConfig) -> list[str]:
@@ -39,7 +45,7 @@ def _common_opts(cfg: TapConfig) -> list[str]:
         "-o",
         "ExitOnForwardFailure=yes",
         "-i",
-        str(PRIVATE_KEY),
+        str(private_key(cfg)),
     ]
 
 
@@ -53,8 +59,9 @@ def tunnel_command(cfg: TapConfig) -> list[str]:
     return cmd
 
 
-def _fix_key_perms() -> None:
-    for key, mode in ((PRIVATE_KEY, 0o600), (PRIVATE_KEY.with_suffix(".pub"), 0o644)):
+def _fix_key_perms(cfg: TapConfig) -> None:
+    key_path = private_key(cfg)
+    for key, mode in ((key_path, 0o600), (key_path.with_suffix(".pub"), 0o644)):
         if key.is_file():
             key.chmod(mode)
 
@@ -71,14 +78,14 @@ def kill_stale_tunnels(port: str) -> None:
                     subprocess.run(["kill", pid], check=False)
 
 
-def serve(cfg: TapConfig) -> None:
+def serve(cfg: TapConfig, on_connected: Callable[[int], None] | None = None) -> None:
     """Establish the tunnel and block until it drops.
 
     Raises :class:`ConnectionError` when ssh exits, so the caller reconnects.
     Propagates :class:`KeyboardInterrupt` (e.g. SIGTERM) after tearing the
     child down cleanly.
     """
-    _fix_key_perms()
+    _fix_key_perms(cfg)
     kill_stale_tunnels(cfg.port)
 
     cmd = tunnel_command(cfg)
@@ -86,7 +93,15 @@ def serve(cfg: TapConfig) -> None:
     log.debug("ssh command: %s", " ".join(cmd))
     proc = subprocess.Popen(cmd)
     try:
-        status = proc.wait()
+        # ExitOnForwardFailure makes an early exit meaningful.  Surviving a
+        # short grace period is the best portable readiness signal ssh offers
+        # without adding a control socket or a second dependency.
+        try:
+            status = proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            if on_connected is not None:
+                on_connected(proc.pid)
+            status = proc.wait()
     finally:
         if proc.poll() is None:
             proc.terminate()

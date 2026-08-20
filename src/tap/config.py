@@ -43,6 +43,10 @@ class TapConfig:
     port: str = "22"
     local_port: str = "10003"
     socks_proxy_port: str = "10004"
+    # The SSH identity used for the reverse tunnel.  Keeping the historical
+    # root key as the default preserves existing installations while allowing
+    # non-interactive provisioning to use a pre-authorized per-device key.
+    identity_file: str = "/root/.ssh/id_rsa"
     command_updates: str = ""
     auto_update: str = "OFF"
     update_server: str = "git pull"
@@ -92,6 +96,7 @@ class TapConfig:
             f"PORT={self.port}",
             f"LOCAL_PORT={self.local_port}",
             f"SOCKS_PROXY_PORT={self.socks_proxy_port}",
+            f"IDENTITY_FILE={self.identity_file}",
             "",
             "# Update Settings",
             f"COMMAND_UPDATES={self.command_updates}",

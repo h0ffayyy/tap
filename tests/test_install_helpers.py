@@ -27,6 +27,7 @@ def test_render_service_substitutes_binary():
     assert "__TAP_BIN__" not in out
     assert "ExecStart=/opt/tap/bin/python -m tap.cli run" in out
     assert "ExecStop=/opt/tap/bin/python -m tap.cli stop" in out
+    assert "RuntimeDirectory=tap" in out
 
 
 def test_proxychains_conf_has_socks_line():

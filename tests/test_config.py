@@ -17,6 +17,7 @@ def test_roundtrip_load_save(tmp_path):
         port="2222",
         local_port="10003",
         command_hmac_key="s3cret",
+        identity_file="/etc/tap/key",
     )
     path = tmp_path / "config"
     cfg.save(path)
@@ -25,6 +26,7 @@ def test_roundtrip_load_save(tmp_path):
     assert loaded.ipaddr == "10.0.0.5"
     assert loaded.port == "2222"
     assert loaded.command_hmac_key == "s3cret"
+    assert loaded.identity_file == "/etc/tap/key"
 
 
 def test_typed_accessors():

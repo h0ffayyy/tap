@@ -1,8 +1,8 @@
 """The Trusted Access Platform (TAP).
 
-A remote penetration-testing dropbox builder: it installs a self-healing
+A remote access dropbox builder: it installs a self-healing
 reverse-SSH tunnel back to a server you control, so a pre-configured box can
-be dropped on a target network and reached from the outside.
+be dropped on a remote network and reached from the outside.
 """
 
 from __future__ import annotations
